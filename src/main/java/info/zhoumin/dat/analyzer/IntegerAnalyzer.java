@@ -17,30 +17,42 @@
  */
 package info.zhoumin.dat.analyzer;
 
+import java.nio.ByteOrder;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.Unpooled;
+
 
 /**
  * @author Min Zhou (coderplay AT gmail.com)
  */
 public class IntegerAnalyzer extends AbstractAnalyzer<Integer> {
+
   public static final IntegerAnalyzer INSTANCE = new IntegerAnalyzer();
 
-  private static final int BITS_STEP = 4;
-  private static final char MASK = 1 << BITS_STEP - 1;
-  private static final int STEPS = Integer.SIZE / BITS_STEP;
+  private static final int STEPS = Integer.SIZE / Byte.SIZE;
 
   @Override
-  public int bitsStep() {
-    return BITS_STEP;
+  public boolean hasNext() {
+    return (index + 1 < STEPS);
   }
 
   @Override
-  public boolean incrementToken() {
-    return (index++ < STEPS);
+  public byte next() {
+    return (byte) ((value >> ++index) & 0xff);
   }
 
   @Override
-  public char token() {
-    return (char) ((value >> index) & MASK);
+  public ByteBuf rest() {
+    int len = STEPS - (index + 1);
+    ByteBuf bb =
+        PooledByteBufAllocator.DEFAULT.directBuffer(len).order(
+            ByteOrder.nativeOrder());
+    for (int i = 0; i < len; i++) {
+      bb.writeByte(next());
+    }
+    return bb;
   }
 
 }

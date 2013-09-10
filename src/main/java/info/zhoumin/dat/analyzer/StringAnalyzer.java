@@ -17,30 +17,42 @@
  */
 package info.zhoumin.dat.analyzer;
 
+import java.nio.ByteOrder;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.Unpooled;
+
 
 /**
  * @author Min Zhou (coderplay AT gmail.com)
  */
 public class StringAnalyzer extends AbstractAnalyzer<String> {
+
   public static final StringAnalyzer INSTANCE = new StringAnalyzer();
-
-  private static final int BITS_STEP = 8;
-
-  private static final char MASK = 1 << BITS_STEP - 1;
-
-  @Override
-  public int bitsStep() {
-    return BITS_STEP;
-  }
   
   @Override
-  public boolean incrementToken() {
-    return (index++ < (value.length() << 1));
+  public boolean hasNext() {
+    return (index + 1) < (value.length() << 1);
   }
 
   @Override
-  public char token() {
-    return value.charAt(index);
+  public byte next() {
+    ++index;
+    char ch = value.charAt(index >> 1);
+    return (byte) ((index & 1) == 0 ? (ch & 0xff) : (ch >> Byte.SIZE & 0xff));
+  }
+
+  @Override
+  public ByteBuf rest() {
+    int len = (value.length() << 1) - (index + 1);
+    ByteBuf bb =
+        PooledByteBufAllocator.DEFAULT.directBuffer(len).order(
+            ByteOrder.nativeOrder());
+    for (int i = 0; i < len; i++) {
+      bb.writeByte(next());
+    }
+    return bb;
   }
 
 }

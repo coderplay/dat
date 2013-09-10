@@ -17,23 +17,40 @@
  */
 package info.zhoumin.dat.analyzer;
 
+import java.nio.ByteOrder;
+
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.Unpooled;
 
 
 /**
- * The {@link Analyzer} provides bit-level access to keys for the
- * {@link AbstractTrie}.
- * 
  * @author Min Zhou (coderplay AT gmail.com)
  */
-public interface Analyzer<T> {
+public class ByteArrayAnalyzer extends AbstractAnalyzer<byte[]> {
 
-  void setValue(T t);
-
-  boolean hasNext();
-
-  byte next();
+  public static final ByteArrayAnalyzer INSTANCE = new ByteArrayAnalyzer();
   
-  ByteBuf rest();
+  @Override
+  public boolean hasNext() {
+    return (index + 1) < value.length;
+  }
+
+  @Override
+  public byte next() {
+    return value[++index];
+  }
+
+  @Override
+  public ByteBuf rest() {
+    int len = value.length - (index + 1);
+    ByteBuf bb =
+        PooledByteBufAllocator.DEFAULT.directBuffer(len).order(
+            ByteOrder.nativeOrder());
+    for (int i = 0; i < len; i++) {
+      bb.writeByte(next());
+    }
+    return bb;
+  }
 
 }
