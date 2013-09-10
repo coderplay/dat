@@ -16,25 +16,7 @@
 
 package info.zhoumin.dat;
 
-import info.zhoumin.dat.analyzer.IntegerAnalyzer;
-
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.ConcurrentModificationException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NoSuchElementException;
-import java.util.Random;
-import java.util.SortedMap;
-import java.util.StringTokenizer;
-import java.util.TreeMap;
-
+import info.zhoumin.dat.analyzer.ByteArrayAnalyzer;
 import junit.framework.TestCase;
 
 import org.junit.Test;
@@ -43,27 +25,29 @@ public class DoubleArrayTrieTest {
   
   @Test
   public void testSimple() {
-    DoubleArrayTrie<Integer, String> intTrie = new DoubleArrayTrie<Integer, String>(IntegerAnalyzer.INSTANCE);
+    DoubleArrayTrie<byte[], Integer> bytesTrie = new DoubleArrayTrie<byte[], Integer>(ByteArrayAnalyzer.INSTANCE);
 //    TestCase.assertTrue(intTrie.isEmpty());
 //    TestCase.assertEquals(0, intTrie.size());
-
-    intTrie.put(1, "One");
+    bytesTrie.put("bachelor".getBytes(), 1);
+    bytesTrie.put("jar".getBytes(), 2);
+    bytesTrie.put("badage".getBytes(), 3);
+    bytesTrie.put("baby".getBytes(), 3);
 //    intTrie.put(1 << Integer.SIZE-1, "One");
-    TestCase.assertFalse(intTrie.isEmpty());
-    TestCase.assertEquals(1, intTrie.size());
+    TestCase.assertFalse(bytesTrie.isEmpty());
+    TestCase.assertEquals(1, bytesTrie.size());
     
-    TestCase.assertEquals("One", intTrie.remove(1));
-    TestCase.assertNull(intTrie.remove(1));
-    TestCase.assertTrue(intTrie.isEmpty());
-    TestCase.assertEquals(0, intTrie.size());
-    
-    intTrie.put(1, "One");
-    TestCase.assertEquals("One", intTrie.get(1));
-    TestCase.assertEquals("One", intTrie.put(1, "NotOne"));
-    TestCase.assertEquals(1, intTrie.size());
-    TestCase.assertEquals("NotOne", intTrie.get(1));
-    TestCase.assertEquals("NotOne", intTrie.remove(1));
-    TestCase.assertNull(intTrie.put(1, "One"));
+//    TestCase.assertEquals("One", stringTrie.remove(1));
+//    TestCase.assertNull(stringTrie.remove(1));
+//    TestCase.assertTrue(stringTrie.isEmpty());
+//    TestCase.assertEquals(0, stringTrie.size());
+//    
+//    stringTrie.put(1L, 1);
+//    TestCase.assertEquals("One", stringTrie.get(1L));
+//    TestCase.assertEquals("One", stringTrie.put(1L, "NotOne"));
+//    TestCase.assertEquals(1, stringTrie.size());
+//    TestCase.assertEquals("NotOne", stringTrie.get(1L));
+//    TestCase.assertEquals("NotOne", stringTrie.remove(1L));
+//    TestCase.assertNull(stringTrie.put(1L, "One"));
   }
 //  
 //  @Test
