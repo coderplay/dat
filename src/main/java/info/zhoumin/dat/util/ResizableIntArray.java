@@ -17,47 +17,42 @@
  */
 package info.zhoumin.dat.util;
 
-import info.zhoumin.dat.paging.Page;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.List;
-
-import sun.nio.ch.DirectBuffer;
 
 /**
  * @author Min Zhou (coderplay AT gmail.com)
  */
 public final class ResizableIntArray {
-
-  static final int DEFAULT_PAGE_SIZE_BITS = 12;
-  static final int DEFAULT_PAGE_SIZE = 1 << DEFAULT_PAGE_SIZE_BITS;
-  static final int DAFAULT_PAGE_SIZE_MASK = DEFAULT_PAGE_SIZE - 1;
  
+  static final int INT_SIZE = 4; // 4 bytes
   static final int INT_SIZE_BITS = 2; // 4 bytes
 
-  private List<Page> pages;
+  private ByteBuf buffer;
 
   public ResizableIntArray() {
-    ByteBuffer bb = ByteBuffer.allocateDirect(DEFAULT_PAGE_SIZE)
-                              .order(ByteOrder.nativeOrder());
-    Page p = new Page(bb, ((DirectBuffer) bb).address());
-    pages = new ArrayList<Page>();
-    pages.add(p);
+    buffer =
+        PooledByteBufAllocator.DEFAULT.directBuffer().order(
+            ByteOrder.nativeOrder());
   }
 
-  /**
-   * Returns the length of this array. 
-   * @return the length of this array. 
-   */
-  public int length() {
-    return pages.size() << DEFAULT_PAGE_SIZE_BITS;
+  public ResizableIntArray(int initialCapacity) {
+    buffer =
+        PooledByteBufAllocator.DEFAULT.directBuffer(
+            initialCapacity << INT_SIZE_BITS).order(ByteOrder.nativeOrder());
   }
 
-  /**
-   */
-  public void clear() {
+  public void capacity(int capacity) {
+    buffer.capacity(capacity << INT_SIZE_BITS);
+  }
+  
+  public int capacity() {
+    /* In netty4, ByteBuf will be cleared after enlarge it
+     * By changing the writer index, this bug would be coped*/
+    buffer.writerIndex(buffer.capacity());
+    return buffer.capacity() >>  INT_SIZE_BITS;
   }
 
   /**
@@ -69,29 +64,14 @@ public final class ResizableIntArray {
    *         (<tt>index &lt; 0 || index &gt;= length()</tt>)
    */
   public int get(int index) {
-    int byteIndex = index << INT_SIZE_BITS;
-    int pageIndex = (byteIndex >> DEFAULT_PAGE_SIZE_BITS);
-    int offset = (byteIndex & DAFAULT_PAGE_SIZE_MASK);
-    return pages.get(pageIndex).asByteBuffer().getInt(offset);
+    return buffer.getInt(index << INT_SIZE_BITS);
   }
 
   /**
    */
   public void set(int index, int value) {
-    int byteIndex = index << INT_SIZE_BITS;
-    int pageIndex = (byteIndex >> DEFAULT_PAGE_SIZE_BITS);
-    if (pageIndex >= pages.size()) {
-      for (int i = 0; i <= pageIndex - pages.size(); i++) {
-        ByteBuffer bb =
-            ByteBuffer.allocateDirect(DEFAULT_PAGE_SIZE)
-                      .order(ByteOrder.nativeOrder());
-        Page p = new Page(bb, ((DirectBuffer) bb).address());
-        pages.add(p);
-      }
-    }
-    
-    int offset = (byteIndex & DAFAULT_PAGE_SIZE_MASK);
-    pages.get(pageIndex).asByteBuffer().putInt(offset, value);
+    int address = index << INT_SIZE_BITS;
+    buffer.setInt(address, value);
   }
   
 }
