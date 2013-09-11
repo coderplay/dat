@@ -66,7 +66,6 @@ final class Tail {
   /**
    *  Add a new suffix
    *
-   * @param t      : the tail data
    * @param suffix : the new suffix
    *
    * @return the index of the newly added suffix.
@@ -78,7 +77,25 @@ final class Tail {
     tails[newTail] = suffix;
     return newTail + TAIL_START_BLOCKNO;
   }
-
-
+  
+  /**
+   * Set suffix of existing entry of given @a index in tail.
+   * 
+   * @param index the index of the suffix
+   * @param suffix  the new suffix
+   */
+  boolean setSuffix(int index, ByteBuf suffix) {
+    index -= TAIL_START_BLOCKNO;
+    if (index < tailNum) {
+      tails[index] = suffix;
+      return true;
+    }
+    return false;
+  }
+  
+  ByteBuf getSuffix(int index) {
+    index -= TAIL_START_BLOCKNO;
+    return index < tailNum ? tails[index] : null;
+  }
 
 }

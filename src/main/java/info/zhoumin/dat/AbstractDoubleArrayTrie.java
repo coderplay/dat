@@ -35,35 +35,31 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
   private static final int TRIE_INDEX_MAX = 0x7fffffff;
 
   private static final int DA_SIGNATURE = 0xDAFCDAFC;
-  
+
   private static final int TRIE_INDEX_ERROR = 0;
-  
+
   private static final int FREE_LIST_BEGIN = 1;
 
   private static final int DOUBLE_ARRAY_ROOT = 2;
-  
-  private static final int DA_POOL_BEGIN = 3;
 
+  private static final int DA_POOL_BEGIN = 3;
 
   protected ResizableIntArray base;
 
   protected ResizableIntArray check;
 
   protected Tail tail;
-  
+
   protected boolean isDirty;
 
-  
   AbstractDoubleArrayTrie(Analyzer<? super K> keyAnalyzer) {
     super(keyAnalyzer);
     this.base = new ResizableIntArray(3);
     this.check = new ResizableIntArray(3);
 
-    /* DA Header:
-     * - Cell 0: SIGNATURE, number of cells
-     * - Cell 1: free circular-list pointers
-     * - Cell 2: root node
-     * - Cell 3: DA pool begin
+    /*
+     * DA Header: - Cell 0: SIGNATURE, number of cells - Cell 1: free
+     * circular-list pointers - Cell 2: root node - Cell 3: DA pool begin
      */
     base.set(0, DA_SIGNATURE);
     check.set(0, DA_POOL_BEGIN);
@@ -71,31 +67,29 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
     check.set(1, -1);
     base.set(2, DA_POOL_BEGIN);
     check.set(2, 0);
-    
+
     this.tail = new Tail();
- 
+
     this.isDirty = true;
   }
-  
-  
+
   private int getCheck(int s) {
     return (s < check.capacity()) ? check.get(s) : TRIE_INDEX_ERROR;
   }
 
-  private boolean daIsSeperate() {
-    return false;
+  private boolean daIsSeperate(int s) {
+    return base.get(s) < 0;
   }
-  
-  
+
   /**
-   * Walk the double-array trie from state s, using input character c.
-   * If there exists an edge from @a *s with arc labeled @a c, this function
-   * returns TRUE and @a *s is updated to the new state. Otherwise, it returns
-   * FALSE and @a *s is left unchanged.
-   *
+   * Walk the double-array trie from state s, using input character c. If there
+   * exists an edge from @a s with arc labeled @a c, this function returns TRUE
+   * and @a *s is updated to the new state. Otherwise, it returns FALSE and @a
+   * *s is left unchanged.
+   * 
    * @param s current state
    * @param c the input character
-   *
+   * 
    * @return boolean indicating success
    */
   private int getNext(int s, int c) {
@@ -105,28 +99,74 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
     }
     return -1;
   }
-  
-  private boolean inBranch(int sepNode, int c, ByteBuf suffix, V data) {
-    int newDA = insertBranch (sepNode, c);
+
+  private boolean branchInBranch(int sepNode, int c, ByteBuf suffix, V data) {
+    int newDA = insertBranch(sepNode, c);
 
     int newTail = tail.addSuffix(suffix);
-//    tail_set_data (trie->tail, new_tail, data);
+    // tail_set_data (trie->tail, new_tail, data);
     base.set(newDA, -newTail);
+
+    this.isDirty = true;
     return true;
   }
-  
+
+  private boolean branchInTail(int sepNode, int c, ByteBuf suffix, V data) {
+    /* adjust separate point in old path */
+    int oldTail = getTailIndex(sepNode);
+    ByteBuf oldSuffix = tail.getSuffix(oldTail);
+    if (oldSuffix == null)
+      return false;
+
+    byte oldByte, newByte;
+    int s = sepNode;
+    suffix.resetReaderIndex();
+    oldSuffix.resetReaderIndex();
+    do {
+      newByte = suffix.readByte();
+      oldByte = oldSuffix.readByte();
+      if (newByte != oldByte)
+        break;
+      int t = insertBranch(s, newByte + 1);
+      if (TRIE_INDEX_ERROR == t) {
+        // /* failed, undo previous insertions and return error */
+        // da_prune_upto (trie->da, sep_node, s);
+        // trie_da_set_tail_index (trie->da, sep_node, old_tail);
+        // throw new RuntimeException("error happened!");
+        return false;
+      }
+      s = t;
+    } while (suffix.isReadable() && oldSuffix.isReadable());
+
+    int oldDA = insertBranch(s, oldByte + 1);
+    if (TRIE_INDEX_ERROR == oldDA) {
+      // /* failed, undo previous insertions and return error */
+      // da_prune_upto (trie->da, sep_node, s);
+      // trie_da_set_tail_index (trie->da, sep_node, old_tail);
+      // throw new RuntimeException("error happened!");
+      return false;
+    }
+
+    tail.setSuffix(oldTail, oldSuffix.discardReadBytes().copy());
+    setTailIndex(oldDA, oldTail);
+
+    /* insert the new branch at the new separate point */
+    return branchInBranch(s, newByte + 1, suffix.discardReadBytes().copy(),
+        data);
+  }
+
   /**
    * @brief Insert a branch from trie node
-   *
+   * 
    * @param d : the double-array structure
    * @param s : the state to add branch to
    * @param c : the character for the branch label
-   *
+   * 
    * @return the index of the new node
-   *
-   * Insert a new arc labelled with character @a c from the trie node 
-   * represented by index @a s in double-array structure @a d.
-   * Note that it assumes that no such arc exists before inserting.
+   * 
+   *         Insert a new arc labelled with character @a c from the trie node
+   *         represented by index @a s in double-array structure @a d. Note that
+   *         it assumes that no such arc exists before inserting.
    */
   private int insertBranch(int s, int c) {
     int bs = base.get(s);
@@ -145,7 +185,7 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
         List<Integer> symbols = outputSymbols(s);
         int insertIndex = Collections.binarySearch(symbols, c);
         if (insertIndex < 0)
-          symbols.add(-insertIndex, c);
+          symbols.add(-(insertIndex + 1), c);
         int newBase = findFreeBase(symbols);
 
         if (TRIE_INDEX_ERROR == newBase)
@@ -161,7 +201,7 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
 
       if (TRIE_INDEX_ERROR == newBase)
         return TRIE_INDEX_ERROR;
-      
+
       base.set(s, newBase);
       next = newBase + c;
     }
@@ -169,15 +209,15 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
     check.set(next, s);
     return next;
   }
-  
+
   private void relocateBase(int s, int newBase) {
 
-    int old_base = base.get(s);
+    int oldBase = base.get(s);
     List<Integer> symbols = outputSymbols(s);
 
     for (int sym : symbols) {
 
-      int oldNext = old_base + sym;
+      int oldNext = oldBase + sym;
       int newNext = newBase + sym;
       int oldNextBase = base.get(oldNext);
 
@@ -193,7 +233,7 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
       /* preventing the case of TAIL pointer */
       if (oldNextBase > 0) {
 
-        int max = Math.min(Byte.MAX_VALUE + 1, TRIE_INDEX_MAX - oldNextBase);
+        int max = Math.min((1 << Byte.SIZE) + 1, TRIE_INDEX_MAX - oldNextBase);
         for (int c = 1; c < max; c++) {
           if (check.get(oldNextBase + c) == oldNext)
             check.set(oldNextBase + c, newNext);
@@ -207,14 +247,14 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
     /* finally, make BASE[s] point to new_base */
     base.set(s, newBase);
   }
-  
+
   private List<Integer> outputSymbols(int s) {
     List<Integer> syms = new ArrayList<Integer>();
 
     int bs = base.get(s);
-    int max = Math.min(Byte.MAX_VALUE + 1, TRIE_INDEX_MAX - bs);
+    int max = Math.min((1 << Byte.SIZE) + 1, TRIE_INDEX_MAX - bs);
     for (int c = 1; c < max; c++) {
-      if (check.get(bs + c) == s)
+      if (getCheck(bs + c) == s)
         syms.add(c);
     }
 
@@ -265,12 +305,12 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
 
     return s - firstSym;
   }
-  
+
   private boolean fitSymbols(int base, List<Integer> symbols) {
     for (int sym : symbols) {
       /*
-       * if (base + sym) > TRIE_INDEX_MAX which means it's overflow, 
-       * or cell[base + sym] is not free, the symbol is not fit.
+       * if (base + sym) > TRIE_INDEX_MAX which means it's overflow, or
+       * cell[base + sym] is not free, the symbol is not fit.
        */
       if (base > TRIE_INDEX_MAX - sym || !checkFreeCell(base + sym))
         return false;
@@ -318,7 +358,6 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
     base.set(next, -prev);
   }
 
-
   @Override
   public V put(K key, V value) {
     if (key == null) {
@@ -328,32 +367,58 @@ abstract class AbstractDoubleArrayTrie<K, V> extends AbstractTrie<K, V> {
     int s = DOUBLE_ARRAY_ROOT;
     keyAnalyzer.setValue(key);
     while (keyAnalyzer.hasNext()) {
+      if (daIsSeperate(s))
+        break;
       int c = (int) keyAnalyzer.next() + 1;
       int next = getNext(s, c);
       if (next < 0) {
-        inBranch(s, c, keyAnalyzer.rest(), value);
+        branchInBranch(s, c, keyAnalyzer.rest(), value);
         return value;
-      } else {
-        s = next;
+      }
+      s = next;
+    }
+
+    /* walk through tail */
+    ByteBuf suffix = tail.getSuffix(getTailIndex(s));
+    suffix.resetReaderIndex();
+    ByteBuf tailBytes = keyAnalyzer.rest();
+
+    int c = (keyAnalyzer.hasNext() ? keyAnalyzer.next() : 0) + 1;
+    while (suffix.isReadable() && tailBytes.isReadable()) {
+      byte b = suffix.readByte();
+      if (b != tailBytes.readByte()) {
+        branchInTail(s, c, tailBytes, value);
+        return value;
       }
     }
+
+    // 到这行, 两后缀完全相等
+    this.isDirty = true;
     return null;
+  }
+
+  private int getTailIndex(int s) {
+    return -base.get(s);
+  }
+
+  private void setTailIndex(int s, int v) {
+    base.set(s, -v);
   }
 
   @Override
   public V get(Object key) {
-//    if (key == null) {
-//      throw new NullPointerException("Key cannot be null");
-//    }
-//    
-//    int s = getRoot(); 
-//    keyAnalyzer.setValue(key);
-//    while(keyAnalyzer.hasNext()) {
-//      int c = (int) keyAnalyzer.next() + 1;
-//      if((s = walkDoubleArray(s, c)) < 0) {
-//        
-//      }
-//    }
+    // if (key == null) {
+    // throw new NullPointerException("Key cannot be null");
+    // }
+    //
+    // int s = getRoot();
+    // keyAnalyzer.setValue(key);
+    // while(keyAnalyzer.hasNext()) {
+    // int c = (int) keyAnalyzer.next() + 1;
+    // if((s = walkDoubleArray(s, c)) < 0) {
+    //
+    // }
+    // }
     return null;
   }
 
