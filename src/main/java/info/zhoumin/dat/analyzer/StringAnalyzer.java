@@ -49,8 +49,11 @@ public class StringAnalyzer extends AbstractAnalyzer<String> {
     ByteBuf bb =
         PooledByteBufAllocator.DEFAULT.directBuffer(len).order(
             ByteOrder.nativeOrder());
-    for (int i = 0; i < len; i++) {
-      bb.writeByte(next());
+    for (int i = len; i > 0; i--) {
+      int idx = (value.length() << 1) - i;
+      char ch = value.charAt(idx >> 1);
+      byte b = (byte) ((idx & 1) == 0 ? (ch & 0xff) : (ch >> Byte.SIZE & 0xff));
+      bb.writeByte(b);
     }
     return bb;
   }

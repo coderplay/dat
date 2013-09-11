@@ -47,8 +47,8 @@ public class ByteArrayAnalyzer extends AbstractAnalyzer<byte[]> {
     ByteBuf bb =
         PooledByteBufAllocator.DEFAULT.directBuffer(len).order(
             ByteOrder.nativeOrder());
-    for (int i = 0; i < len; i++) {
-      bb.writeByte(next());
+    for (int i = len; i > 0; i--) {
+      bb.writeByte(value[value.length - i]);
     }
     return bb;
   }

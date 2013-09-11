@@ -48,9 +48,10 @@ public class LongAnalyzer extends AbstractAnalyzer<Long> {
     int len = STEPS - (index + 1);
     ByteBuf bb =
         PooledByteBufAllocator.DEFAULT.directBuffer(len).order(
-            ByteOrder.nativeOrder());
-    for (int i = 0; i < len; i++) {
-      bb.writeByte(next());
+            ByteOrder.nativeOrder());    
+    for (int i = len; i > 0; i--) {
+      byte b = (byte) ((value >> (STEPS - i)) & 0xff);
+      bb.writeByte(b);
     }
     return bb;
   }
